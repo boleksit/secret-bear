@@ -16,6 +16,8 @@ class MainWindow : public QMainWindow
     Q_OBJECT
 
 public:
+
+
     explicit MainWindow(QWidget *parent = 0);
     ~MainWindow();
 
@@ -41,6 +43,8 @@ public slots:
     void download();
     void downloaded(QNetworkReply *reply);
     void downloadProgress(qint64 recieved, qint64 total);
+    void hashCreate();
+    quint16 crcCalc(QString path);
 };
 
 #endif // MAINWINDOW_H
