@@ -442,21 +442,31 @@ void MainWindow::downloadProgress(qint64 recieved, qint64 total) {
 void MainWindow::hashCreate()
 {
     QString hash;
+    QString hash_front;
+
+    hash_front+="P2ID:";
+    hash_front+=CUpload.input_path.section('/',-1);
+    hash_front+=":"+crcCalc(CUpload.input_path);
+    hash_front+="[";
 
 
-    hash+="P2ID:";
-    hash+=ui->inputLineEdit1->text().section('/',-1);
-    hash+=crcCalc("")
-    hash+="[";
-
-    for(int i=1; i<=ile_segow; i++)
+    for(int i=1; i<=CUpload.ile_segow; i++)
     {
-        hash+=i;
-        for(int j=0; j<ile_hostow; j++)
-            hash+='/'+tab[i][j]+'/';
+        hash+=i+crcCalc(seg_path[i-1]);
+        for(int j=1; j<=CUpload.ile_hostow; j++)
+            hash+='/'+CUpload.links[i][j]+'/';
     }
 
+
+
+    const int key = 0xFAFAFF;
+
+    QByteArray blob = hash;
+
+    for(int i=0; i<hash.length(); i++)
+
     hash+=']';
+    ui->textEdit->setText(hash);
 }
 
 quint16 MainWindow::crcCalc(QString path)
