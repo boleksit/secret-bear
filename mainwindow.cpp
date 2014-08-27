@@ -8,8 +8,8 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->setupUi(this);
 
     manager = new QNetworkAccessManager(this);
-    QNetworkProxy proxy(QNetworkProxy::HttpCachingProxy, "127.0.0.1", 8888);
-    manager->setProxy(proxy);
+    //QNetworkProxy proxy(QNetworkProxy::HttpCachingProxy, "127.0.0.1", 8888);
+    //manager->setProxy(proxy);
 
     connect(ui->inputButton1, SIGNAL(clicked()), this, SLOT(chooseInput1()));
     connect(ui->inputButton2, SIGNAL(clicked()), this, SLOT(chooseInput2()));
@@ -24,6 +24,7 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->startButton3, SIGNAL(clicked()), this, SLOT(compare()));
     connect(ui->startButton5, SIGNAL(clicked()), this, SLOT(upload()));
     connect(ui->startButton6, SIGNAL(clicked()), this, SLOT(download()));
+    connect(ui->startButton7, SIGNAL(clicked()), this, SLOT(copy()));
     connect(ui->encodeSlider, SIGNAL(sliderMoved(int)), ui->encodeSliderLabel, SLOT(setNum(int)));
 }
 
@@ -199,7 +200,7 @@ void MainWindow::upload() {
     QList<QHttpPart> additionalParts;
     QNetworkRequest req;
     QHttpPart part;
-    switch(ui->comboBox->currentIndex()) {
+    switch(ui->comboBox1->currentIndex()) {
         case 0:
             url = "http://abload.de/upload.php";
             content = "form-data; name=\"img0\"; filename=\"output.png\"";
@@ -365,6 +366,96 @@ void MainWindow::downloadProgress(qint64 recieved, qint64 total) {
         wynik = recieved*100/total;
     ui->progressBar2->setValue(wynik);
     ui->progressBar2->repaint();
+    return;
+}
+
+void MainWindow::copy() {
+    QTime time = QTime::currentTime();
+    ui->doneLabel7->setText("PROCESSING...");
+    ui->outputLineEdit7->setText("");
+
+    QString url, content;
+    QList<QHttpPart> additionalParts;
+    QNetworkRequest req;
+    QHttpPart part;
+    switch(ui->comboBox2->currentIndex()) {
+        case 0:
+            url = "http://fastpic.ru/upload_copy";
+            content = "form-data; name=\"files\"";
+            part.setHeader(QNetworkRequest::ContentDispositionHeader, "form-data; name=\"check_thumb\"");
+            part.setBody("size");
+            additionalParts.append(part);
+            part.setHeader(QNetworkRequest::ContentDispositionHeader, "form-data; name=\"thumb_text\"");
+            part.setBody("Увеличить");
+            additionalParts.append(part);
+            part.setHeader(QNetworkRequest::ContentDispositionHeader, "form-data; name=\"thumb_size\"");
+            part.setBody("170");
+            additionalParts.append(part);
+            part.setHeader(QNetworkRequest::ContentDispositionHeader, "form-data; name=\"res_select\"");
+            part.setBody("500");
+            additionalParts.append(part);
+            part.setHeader(QNetworkRequest::ContentDispositionHeader, "form-data; name=\"orig_resize\"");
+            part.setBody("500");
+            additionalParts.append(part);
+            part.setHeader(QNetworkRequest::ContentDispositionHeader, "form-data; name=\"orig_rotate\"");
+            part.setBody("0");
+            additionalParts.append(part);
+            part.setHeader(QNetworkRequest::ContentDispositionHeader, "form-data; name=\"jpeg_quality\"");
+            part.setBody("75");
+            additionalParts.append(part);
+            part.setHeader(QNetworkRequest::ContentDispositionHeader, "form-data; name=\"submit\"");
+            part.setBody("Загрузить");
+            additionalParts.append(part);
+            part.setHeader(QNetworkRequest::ContentDispositionHeader, "form-data; name=\"uploading\"");
+            part.setBody("1");
+            additionalParts.append(part);
+            break;
+    }
+
+    req.setUrl(QUrl(url));
+    QHttpMultiPart *multi = new QHttpMultiPart;
+    QByteArray a;
+    a.append(ui->inputLineEdit7->text());
+    part.setBody(a);
+    part.setHeader(QNetworkRequest::ContentDispositionHeader, content);
+    multi->append(part);
+    for(int i = 0; i < additionalParts.size(); i++)
+        multi->append(additionalParts.at(i));
+    req.setHeader(QNetworkRequest::ContentTypeHeader, "multipart/form-data; boundary=" + QString(multi->boundary()));
+
+    connect(manager, SIGNAL(finished(QNetworkReply*)), this, SLOT(copied(QNetworkReply*)));
+    multi->setContentType(QHttpMultiPart::FormDataType);
+    manager->post(req, multi);
+
+    ui->doneLabel7->setText(QString::number(time.msecsTo(QTime::currentTime())));
+    return;
+}
+
+void MainWindow::copied(QNetworkReply *reply) {
+    QString s = reply->readAll();
+    QString ref = reply->rawHeader("Refresh");
+
+    if(ref.contains("fastpic.ru")) {
+        ref.remove(0, ref.indexOf("http"));
+        QNetworkRequest req;
+        req.setUrl(QUrl(ref));
+        manager->get(req);
+        return;
+    } else if(s.contains("<title>FastPic")) {
+        s.remove(0, s.indexOf("size=\"85\"") + 17);
+        s.remove(s.indexOf("\">"), s.length());
+        ui->outputLineEdit7->setText(s);
+    } else {
+        QList<QNetworkReply::RawHeaderPair> list = reply->rawHeaderPairs();
+        QString lol = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toString();
+        lol.append(":\n");
+        for(int i = 0; i < list.count(); i++) {
+            lol.append(list.at(i).first + ": " +  list.at(i).second + "\n");
+        }
+        lol.append("\n" + s);
+        ui->textEdit->setText(lol);
+    }
+    disconnect(manager, SIGNAL(finished(QNetworkReply*)), this, SLOT(copied(QNetworkReply*)));
     return;
 }
 

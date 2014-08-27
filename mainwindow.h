@@ -41,6 +41,8 @@ public slots:
     void download();
     void downloaded(QNetworkReply *reply);
     void downloadProgress(qint64 recieved, qint64 total);
+    void copy();
+    void copied(QNetworkReply *reply);
 };
 
 #endif // MAINWINDOW_H
