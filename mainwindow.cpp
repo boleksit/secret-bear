@@ -189,8 +189,7 @@ void MainWindow::compare() {
 void MainWindow::upload() {
     QTime time = QTime::currentTime();
     ui->doneLabel5->setText("PROCESSING...");
-    ui->progressBar1->setValue(0);
-    ui->progressBar1->repaint();
+    ui->outputLineEdit5->setText("");
     QFile file(ui->inputLineEdit5->text());
     if(!file.open(QIODevice::ReadOnly)) {
         ui->doneLabel5->setText("ERROR");
@@ -212,30 +211,45 @@ void MainWindow::upload() {
             additionalParts.append(part);
             break;
         case 1:
-            url = "http://fastpic.ru/upload?api=1";
-            content = "form-data; name=\"file1\"; filename=\"image.png\"";
-            req.setHeader(QNetworkRequest::UserAgentHeader, "FPUploader");
-            req.setRawHeader(QByteArray("Expect"), QByteArray("100-continue"));
-            req.setRawHeader(QByteArray("Accept"), QByteArray("text/html"));
-            part.setHeader(QNetworkRequest::ContentDispositionHeader, "form-data; name=\"method\"");
-            part.setBody("file");
+            url = "http://fastpic.ru/uploadmulti";
+            content = "form-data; name=\"file[]\"; filename=\"output.png\"";
+            part.setHeader(QNetworkRequest::ContentDispositionHeader, "form-data; name=\"check_thumb\"");
+            part.setBody("size");
             additionalParts.append(part);
-            part.setHeader(QNetworkRequest::ContentDispositionHeader, "form-data; name=\"uploading\"");
-            part.setBody("1");
+            part.setHeader(QNetworkRequest::ContentDispositionHeader, "form-data; name=\"thumb_text\"");
+            part.setBody("Увеличить");
             additionalParts.append(part);
             part.setHeader(QNetworkRequest::ContentDispositionHeader, "form-data; name=\"thumb_size\"");
             part.setBody("170");
             additionalParts.append(part);
-            part.setHeader(QNetworkRequest::ContentDispositionHeader, "form-data; name=\"check_optimization\"");
-            part.setBody("1");
+            part.setHeader(QNetworkRequest::ContentDispositionHeader, "form-data; name=\"res_select\"");
+            part.setBody("500");
             additionalParts.append(part);
-            part.setHeader(QNetworkRequest::ContentDispositionHeader, "form-data; name=\"check_thumb\"");
-            part.setBody("size");
+            part.setHeader(QNetworkRequest::ContentDispositionHeader, "form-data; name=\"orig_resize\"");
+            part.setBody("500");
+            additionalParts.append(part);
+            part.setHeader(QNetworkRequest::ContentDispositionHeader, "form-data; name=\"orig_rotate\"");
+            part.setBody("0");
+            additionalParts.append(part);
+            part.setHeader(QNetworkRequest::ContentDispositionHeader, "form-data; name=\"jpeg_quality\"");
+            part.setBody("75");
+            additionalParts.append(part);
+            part.setHeader(QNetworkRequest::ContentDispositionHeader, "form-data; name=\"submit\"");
+            part.setBody("Загрузить");
+            additionalParts.append(part);
+            part.setHeader(QNetworkRequest::ContentDispositionHeader, "form-data; name=\"uploading\"");
+            part.setBody("1");
             additionalParts.append(part);
             break;
         case 2:
-            url = "";
-            content = "";
+            url = "http://minus.com/api/UploadItem_Singleton/";
+            content = "form-data; name=\"file\"; filename=\"output.png\"";
+            part.setHeader(QNetworkRequest::ContentDispositionHeader, "form-data; name=\"filename\"");
+            part.setBody("output.png");
+            additionalParts.append(part);
+            part.setHeader(QNetworkRequest::ContentDispositionHeader, "form-data; name=\"caption\"");
+            part.setBody("");
+            additionalParts.append(part);
             break;
     }
 
@@ -251,6 +265,8 @@ void MainWindow::upload() {
     for(int i = 0; i < additionalParts.size(); i++)
         multi->append(additionalParts.at(i));
 
+    req.setHeader(QNetworkRequest::ContentTypeHeader, "multipart/form-data; boundary=" + QString(multi->boundary()));
+
     connect(manager, SIGNAL(finished(QNetworkReply*)), this, SLOT(uploaded(QNetworkReply*)));
     multi->setContentType(QHttpMultiPart::FormDataType);
     QNetworkReply *reply = manager->post(req, multi);
@@ -263,25 +279,35 @@ void MainWindow::upload() {
 
 void MainWindow::uploaded(QNetworkReply *reply) {
     QString s = reply->readAll();
-    QString refresh = reply->rawHeader("Date");
-    QList<QNetworkReply::RawHeaderPair> list = reply->rawHeaderPairs();
+    QString loc = reply->rawHeader(QByteArray("Location"));
+    QString ref = reply->rawHeader(QByteArray("Refresh"));
     if(s.contains("s:15:")) {
         s.remove(0, s.indexOf("s:15:") + 11);
         s.remove(s.indexOf("&"), s.length());
         s = "http://abload.de/img/" + s;
         ui->outputLineEdit5->setText(s);
-    //} else if(refresh.contains("fastpic.ru")) {
-    //    refresh.remove(0, refresh.indexOf("=") + 1);
-    //    manager->get(QNetworkRequest(QUrl(refresh)));
-    //    return;
-    //} else if(s.contains("<title>FastPic")) {
-    //    s.remove(0, s.indexOf("size=\"85\""));
-    //    s.remove(0, s.indexOf("ue=") + 4);
-    //    s.remove(s.indexOf("\">"), s.length());
-    //    ui->outputLineEdit5->setText(s);
-    //}
+    } else if(s.contains("{\"gallery_id\":")) {
+        s.remove(0, s.indexOf("\"id\":") + 7);
+        s.remove(s.indexOf("\","), s.length());
+        s = "http://i.minus.com/i" + s + ".png";
+        QNetworkRequest req;
+        req.setUrl(QUrl(s));
+        manager->get(req);
+        return;
+    } else if(loc.contains("minus.com")) {
+        ui->outputLineEdit5->setText(loc);
+    } else if(ref.contains("fastpic.ru")) {
+        ref.remove(0, ref.indexOf("http"));
+        QNetworkRequest req;
+        req.setUrl(QUrl(ref));
+        manager->get(req);
+        return;
+    } else if(s.contains("<title>FastPic")) {
+        s.remove(0, s.indexOf("size=\"85\"") + 17);
+        s.remove(s.indexOf("\">"), s.length());
+        ui->outputLineEdit5->setText(s);
     } else {
-        //ui->textEdit->setText(QString::number(reply->error()) + ": " + refresh + "\t" + s);
+        QList<QNetworkReply::RawHeaderPair> list = reply->rawHeaderPairs();
         QString lol = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toString();
         lol.append(":\n");
         for(int i = 0; i < list.count(); i++) {
@@ -290,6 +316,7 @@ void MainWindow::uploaded(QNetworkReply *reply) {
         lol.append("\n" + s);
         ui->textEdit->setText(lol);
     }
+    ui->progressBar1->setValue(0);
     disconnect(manager, SIGNAL(finished(QNetworkReply*)), this, SLOT(uploaded(QNetworkReply*)));
     return;
 }
